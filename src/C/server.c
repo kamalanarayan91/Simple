@@ -14,6 +14,7 @@
 #include <signal.h>
 #include <string.h>
 #include <unistd.h>
+#include <dirent.h>
 
 /* Includes related to socket programming */
 #include <netinet/in.h>
@@ -29,7 +30,7 @@
 #include <config.h>
 #include <httpparser.h>
 
-#define ARGS_NUM 1
+#define ARGS_NUM 2
 #define MAX_LINE 128
 
 int main(int argc, char **argv)
@@ -44,6 +45,9 @@ int main(int argc, char **argv)
 
     char *client_addr_string;
     char buffer[MAX_LINE];
+    char path[MAX_PATH];
+    DIR *rootDir;
+
     /*to be malloced by parser*/
      bufStruct response;
      response.buffer = (char *) malloc(sizeof(char)*(MAX_BUF_SIZE + 1));
@@ -69,11 +73,28 @@ int main(int argc, char **argv)
     }
 
     /* Parse the port */
-    port = atoi(argv[1]);
+    port = atoi(argv[1]); 
     if ((port > MAX_PORT) || (port < MIN_PORT)) {
         error_log("%s", "Port must be in range 1024 to 65535");
         exit(EXIT_FAILURE);
     }
+
+
+    /*Validate path*/
+    strcpy(path,argv[2]);
+    rootDir = opendir(path);
+    if(rootDir==NULL)
+    {
+        printf("Please enter Valid directory path\n");
+        exit(EXIT_FAILURE);
+    }
+    else
+    {
+        printf("Directory Valid!\n");
+        closedir(rootDir);
+    }
+
+
 
     /* Create a socket for listening */
     if ((serv_sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -148,7 +169,7 @@ int main(int argc, char **argv)
          */
         if (bytes_received > 0) {
             buffer[bytes_received] = '\0';
-	    parseRequest(buffer,&response);
+	    parseRequest(buffer,&response,path);
             printf("Read from client %s:%d -- %s\n",
                    client_addr_string, ntohs(client_addr.sin_port), buffer);
            /* while (total_sent != bytes_received) {
@@ -169,10 +190,29 @@ int main(int argc, char **argv)
                     total_sent += bytes_sent;
                 }
             }
+
+            //reset for file transfer
+            total_sent = 0;
+            //Send file if applicable
+            while (total_sent != response.fileSize) {
+                printf("sendfile:\n");
+                bytes_sent = send(client_sock, response.fileBuffer + total_sent,
+                                  response.fileSize - total_sent, 0);
+                printf("bytesSend:%d\n",bytes_sent);
+                if (bytes_sent <= 0) {
+                    break;
+                } else {
+                    total_sent += bytes_sent;
+                }
+            }
+
+
         }
         debug_log("Closing connection %s:%d",
                   client_addr_string, ntohs(client_addr.sin_port));
         /* Our work here is done. Close the connection to the client */
+        //free all mallocs
+        //
         close(client_sock);
     }
 

@@ -9,7 +9,7 @@
 * return:
 	none
 */
-void parseRequest(char *buffer, bufStruct *response) {
+void parseRequest(char *buffer, bufStruct *response,char *rootDirPath) {
 
 	int size = 0;
 	int uriLength = 0;
@@ -20,24 +20,39 @@ void parseRequest(char *buffer, bufStruct *response) {
 	char ch;
 	FILE *fp = NULL;
 	int method = -1;
+
+	//uri related -kamalanb
+	char resourcePath[MAX_PATH] = "";
+	char finalURI[MAX_PATH]="";
+
 	while((size < MAX_BUF_SIZE ) && ( (ch = buffer[size]) != ' ')) {
 		methodName[size] = ch;
 		size++;
 	}
 	
+	//
+	
 	methodName[size] = '\0';
 	printf("Method = %s\n",methodName);
+
+
 	//check Get method 
-	
+	response->fileSize = 0; // initialize
 	printf("Return value =  %d \n",checkMethod(methodName));
 	
-	if((method = checkMethod(methodName)) == -1) {
+	if((method = checkMethod(methodName)) == -1) 
+	{
 
 		strcpy(((response->buffer)+(response->bufSize)),response501);
 		response->bufSize += strlen(response501);
 		strcpy(((response->buffer)+(response->bufSize)),server);
 		response->bufSize += strlen(server);
+		
 		printf("Response buf = %s\n",response->buffer);
+
+		strcpy(((response->buffer)+(response->bufSize)),"\r\n");
+		response->bufSize += strlen("\r\n");
+	
 		return;
 	}	
 
@@ -46,7 +61,8 @@ void parseRequest(char *buffer, bufStruct *response) {
 	size++;
 	
 	/*check uri*/
-	while((size < MAX_BUF_SIZE) && ((ch = buffer[size]) != ' ')) {
+	while((size < MAX_BUF_SIZE) && ((ch = buffer[size]) != ' ')) 
+	{
 		uri[uriLength] = ch;
 		uriLength++;
 		size++;
@@ -54,13 +70,30 @@ void parseRequest(char *buffer, bufStruct *response) {
 	}
 	uri[uriLength] = '\0';
 	printf("Uri received = %s \n",uri);
-	checkUri(uri);
-	
-	if((fp = checkUri(uri)) == NULL ) {
+
+	getFinalURI(uri,finalURI);
+
+	// path
+	// argv[2] + uri.
+	// if uri == '/' , add index.html
+	// else
+	//all under the assumption that the rootDir doesn't have a /in the
+	//end
+
+	strcpy(resourcePath,rootDirPath);
+	strcat(resourcePath,finalURI);
+	checkUri(resourcePath);
+	printf("resourcePath:%s\n",resourcePath);
+
+	if((fp = checkUri(resourcePath)) == NULL )
+	{
 		strcpy(((response->buffer)+(response->bufSize)),response404);
 		response->bufSize += strlen(response404);
 		strcpy(((response->buffer)+(response->bufSize)),server);
 		response->bufSize += strlen(server);
+		strcpy(((response->buffer)+(response->bufSize)),"\r\n");
+		response->bufSize += strlen("\r\n");
+		//doesn't need null character.
 		printf("Response buf = %s\n",response->buffer);
 		return;
 
@@ -71,7 +104,7 @@ void parseRequest(char *buffer, bufStruct *response) {
 
 	while((size < MAX_BUF_SIZE ) && ( (ch = buffer[size]) != '\r')) {
                 httpVersion[httpLength] = ch;
-		httpLength++;
+				httpLength++;
                 size++;
         }
 
@@ -83,6 +116,9 @@ void parseRequest(char *buffer, bufStruct *response) {
 		response->bufSize += strlen(response505);
 		strcpy(((response->buffer)+(response->bufSize)),server);
 		response->bufSize += strlen(server);
+		strcpy(((response->buffer)+(response->bufSize)),"\r\n");
+		response->bufSize += strlen("\r\n");
+		
 		printf("Response buf = %s\n",response->buffer);
 		return;
 
@@ -102,11 +138,12 @@ void parseRequest(char *buffer, bufStruct *response) {
 	/*file return*/
 
 	if(method == 1) {
-		serveGet(response,fp);
+		serveGet(response,fp,resourcePath);
 		return;
 	} else if( method == 2) {
 
 		serveHead(response,fp);
+		return;
 	 } else {
 		printf("Why am I here?\n");
 	}
@@ -171,7 +208,34 @@ int checkHttpVersion(char *httpVersion) {
 	        return 0;
 
 	}
-} 
+}
+
+/**
+ * getFinalURI: validates the URI, makes changes to it
+ * if necessary.
+ *
+ * The final URI contains the result.
+ */
+
+void getFinalURI(char *uri,char *finalURI)
+{
+	//uri validation
+	strcpy(finalURI,uri);
+
+	//add index.html
+	if(!strcmp(uri,"/"))
+	{
+	
+		strcat(finalURI,boilerPlatePage);
+	}
+
+		return;	
+
+	
+}
+
+
+
 
 /**
 *serveGet : serves the client with the requested GET METHOD
@@ -181,13 +245,53 @@ int checkHttpVersion(char *httpVersion) {
 *return:
 *	none
 */
-void serveGet(bufStruct *response,FILE *fp) {
+void serveGet(bufStruct *response,FILE *fp,char *uri) {
+	
+	char *mimeBuf;
+	char mimeHeader[MAX_PATH] ="Content-Type: ";
+
+	printf("uri to read from:%s\n",uri);
+
 	//currently sending 200 OK
 	// fill the file transfer
 	strcpy(((response->buffer)+(response->bufSize)),response200);
 	response->bufSize += strlen(response200);
 	strcpy(((response->buffer)+(response->bufSize)),server);
 	response->bufSize += strlen(server);
+
+
+	//Get content type
+	mimeBuf = get_mime(uri);
+	strcat(mimeHeader,mimeBuf);
+	strcat(mimeHeader,"\r\n");
+
+	strcpy(((response->buffer)+(response->bufSize)),mimeHeader);
+	response->bufSize += strlen(mimeHeader);
+
+	//ending CRLF
+	strcpy(((response->buffer)+(response->bufSize)),"\r\n");
+	response->bufSize += strlen("\r\n");
+
+	//Entity Body
+	//Getting filesize
+	fseek(fp,0,SEEK_END);
+	response->fileSize = ftell(fp);
+	//reset fp
+	rewind(fp);
+
+	printf("File Size==%zu\n",response->fileSize);
+	response->fileBuffer = malloc(response->fileSize);
+	//1 -size of element(byte by byte)
+	fread(response->fileBuffer,sizeof(char),response->fileSize,fp);
+
+	//file is in buffer now
+	//memcpy(response->fileBuffer,fp,response->fileSize);
+	
+
+
+	fclose(fp);
+
+	//end response
 	return;
 }
 
@@ -207,6 +311,8 @@ void serveHead(bufStruct *response, FILE *fp) {
         response->bufSize += strlen(response200);
         strcpy(((response->buffer)+(response->bufSize)),server);
         response->bufSize += strlen(server);
+
+        response->fileSize =0;
         return;
 }
 

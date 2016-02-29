@@ -8,7 +8,7 @@ default: getmime server client
 
 #httpparser: httpparser.c
 getmime: getmime.c helper.c
-server: server.c httpparser.c
+server: server.c httpparser.c helper.c
 client: client.c
 
 debug: CFLAGS = -g -Wall -Werror -DDEBUG -DLOG_LEVEL=2 -I ./inc
