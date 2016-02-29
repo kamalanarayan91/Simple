@@ -24,6 +24,9 @@
 #include <sys/stat.h>
 #include <arpa/inet.h>
 
+/*Includes for thread*/
+#include<pthread.h>
+
 /* Local includes from ./inc */
 #include <log.h>
 #include <helper.h>
@@ -33,19 +36,23 @@
 #define ARGS_NUM 2
 #define MAX_LINE 4096
 
+static char path[MAX_PATH];
+
+void *newClientThread(void *vargp);
+
 int main(int argc, char **argv)
 {
     int port;
-    int serv_sock, client_sock;
+    int serv_sock;
     int optval = 1;
-    int bytes_received, bytes_sent, total_sent;
+  
 
     socklen_t len;
     struct sockaddr_in addr, client_addr;
 
     char *client_addr_string;
-    char buffer[MAX_LINE];
-    char path[MAX_PATH];
+    
+    
     
     DIR *rootDir;
 
@@ -140,7 +147,7 @@ int main(int argc, char **argv)
     debug_log("Now listening on port %d", port);
 
     while(1) {
-        total_sent = bytes_received = bytes_sent = 0;
+        
         /* Accept the client connection  */
         len = sizeof(client_addr);
 
@@ -149,7 +156,10 @@ int main(int argc, char **argv)
          * communication with the client while the serv_sock is still used for
          * new connections. accept() blocks if no connections are present
          */
-        client_sock = accept(serv_sock,
+        
+        int* client_sock = malloc(sizeof(int));
+
+        *client_sock = accept(serv_sock,
                              (struct sockaddr *) &client_addr, &len);
         if (client_sock < 0) {
             error_log("Unable to add client due to accept() "
@@ -157,94 +167,110 @@ int main(int argc, char **argv)
             exit(EXIT_FAILURE);
         }
 
+        
+
         inet_ntop(AF_INET, &(client_addr.sin_addr),
                   client_addr_string, INET_ADDRSTRLEN);
         debug_log("Accepted connection from %s:%d",
                   client_addr_string, ntohs(client_addr.sin_port));
 
-        /* Read the date sent from the client */
-        //bytes_received = recv(client_sock, buffer, MAX_LINE - 1, 0);
 
+        pthread_t tid;
+        pthread_create(&tid,NULL,newClientThread,client_sock);
 
-
-        int ret = 0;
-        while((( ret= recv(client_sock,(buffer + bytes_received), MAX_LINE - 1, 0)) > 0) && 
-            (bytes_received < MAX_BUF_SIZE)) 
-        {
-              bytes_received += ret;
-              printf("Received %d \n",ret);
-              if(strncmp((buffer+ (bytes_received -4)),"\r\n\r\n",4) == 0) {
-                   printf("break found\n");
-                   break;
-              }
-        }
-
-        /*
-         * Echo - Write (send) the data back to the client taking care of short
-         * counts
-         */
-        if (bytes_received > 0) {
-            buffer[bytes_received] = '\0';
         
+    }
+
+    return 0;
+}
+
+/**
+ * [newClientThread description]
+ * @param  vargp [description]
+ * @return       [description]
+ */
+void *newClientThread(void *vargp)
+{
+    pthread_detach(pthread_self());
+
+    int client_sock = *((int*) vargp);
+    free(vargp);
+    
+    int bytes_received, bytes_sent, total_sent;
+    char buffer[MAX_LINE];
+    int ret = 0;
+    total_sent = bytes_received = bytes_sent = 0;
+
+    /* Read the date sent from the client */
+    
+    while((( ret= recv(client_sock,(buffer + bytes_received), MAX_LINE - 1, 0)) > 0) && 
+        (bytes_received < MAX_BUF_SIZE)) 
+    {
+          bytes_received += ret;
+          printf("Received %d \n",ret);
+          if(strncmp((buffer+ (bytes_received -4)),"\r\n\r\n",4) == 0) {
+               printf("break found\n");
+               break;
+          }
+    }
+
+    /*
+     * Echo - Write (send) the data back to the client taking care of short
+     * counts
+     */
+    if (bytes_received > 0)
+    {
+        buffer[bytes_received] = '\0';
+    
         bufStruct response;
         response.buffer = (char *) malloc(sizeof(char)*(MAX_BUF_SIZE + 1));
         response.bufSize = 0;
         response.entitySize=0;
         printf("path::::%s",path);
-	    parseRequest(buffer,&response,path);
-            printf("Read from client %s:%d -- %s\n",
-                   client_addr_string, ntohs(client_addr.sin_port), buffer);
-           /* while (total_sent != bytes_received) {
-                bytes_sent = send(client_sock, buffer + total_sent,
-                                  bytes_received - total_sent, 0);
-                if (bytes_sent <= 0) {
-                    break;
-                } else {
-                    total_sent += bytes_sent;
-                }
-            } */
-            while (total_sent != response.bufSize) {
-                bytes_sent = send(client_sock, response.buffer + total_sent,
-                                  response.bufSize - total_sent, 0);
-                if (bytes_sent <= 0) {
-                    break;
-                } else {
-                    total_sent += bytes_sent;
-                }
+        parseRequest(buffer,&response,path);
+           
+        while (total_sent != response.bufSize) 
+        {
+            bytes_sent = send(client_sock, response.buffer + total_sent,
+                              response.bufSize - total_sent, 0);
+            if (bytes_sent <= 0) {
+                break;
+            } else {
+                total_sent += bytes_sent;
             }
+        }
 
-            //reset for file transfer
-            total_sent = 0;
-            //Send file if applicable
-            while (total_sent != response.entitySize) {
-                printf("sendfile:\n");
-                bytes_sent = send(client_sock, response.entityBuffer + total_sent,
-                                  response.entitySize - total_sent, 0);
-                printf("bytesSend:%d\n",bytes_sent);
-                if (bytes_sent <= 0) {
-                    break;
-                } else {
-                    total_sent += bytes_sent;
-                }
+        //reset for file transfer
+        total_sent = 0;
 
+        //Send file if applicable
+        while (total_sent != response.entitySize) {
+            printf("sendfile:\n");
+            bytes_sent = send(client_sock, response.entityBuffer + total_sent,
+                              response.entitySize - total_sent, 0);
+            printf("bytesSend:%d\n",bytes_sent);
+            if (bytes_sent <= 0) {
+                break;
+            } else {
+                total_sent += bytes_sent;
             }
-
-
-
-            if(response.entitySize !=0)
-                free(response.entityBuffer);
-
-            free(response.buffer);
-            printf("response freed\n");
-        
 
         }
-        debug_log("Closing connection %s:%d",
-                  client_addr_string, ntohs(client_addr.sin_port));
-        /* Our work here is done. Close the connection to the client */
-        //free all mallocs
-                close(client_sock);
+
+
+        if(response.entitySize !=0)
+        {
+            free(response.entityBuffer);
+        }
+
+        free(response.buffer);
+        printf("response freed\n");
+
     }
 
-    return 0;
+    debug_log("Closing connection %s:%d",
+              client_addr_string, ntohs(client_addr.sin_port));
+    /* Our work here is done. Close the connection to the client */
+    close(client_sock);
+    return NULL;
 }

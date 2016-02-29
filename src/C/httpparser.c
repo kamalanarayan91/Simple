@@ -36,7 +36,7 @@ void parseRequest(char *buffer, bufStruct *response,char *rootDirPath) {
 
 	printf("rootdirPath:%s",rootDirPath);
 
-	
+
 	//check Get method 
 	response->entitySize = 0; // initialize
 	printf("Return value =  %d \n",checkMethod(methodName));
@@ -483,8 +483,7 @@ int checkHeader(char *buffer,int size) {
 	int ret = FAILURE;
 
 	while(size < MAX_BUF_SIZE) {
-		printf("char = %c %d \n",buffer[size],buffer[size]);
-		printf("size =  %d\n",size);
+		
 		if(buffer[size] == '\r') {
 			if((strncmp((buffer + size),"\r\n\r\n",4)) == 0) {
 				ret = 0;
