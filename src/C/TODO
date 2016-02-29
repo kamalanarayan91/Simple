@@ -1,0 +1,7 @@
+0. Server doesnot wait untill the entire req is sent. Just reads a line and responds (check with telnet to get an idea)
+1. update args to receive www path
+2. parse URI
+3. parse entire header: although we need not send any respose for header fields, we need to check for proper header ending "\r\n\r\n"
+4. send file in response to GET, handle when file size is greater than bufsize
+5. send response to HEAD
+6. MIME Types
