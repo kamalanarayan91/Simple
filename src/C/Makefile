@@ -1,12 +1,14 @@
 CC      = gcc
 CFLAGS  = -Wall -Werror -I ./inc
 
+#default: httpparser getmime server client
 default: getmime server client
 
 .PHONY: clean
 
+#httpparser: httpparser.c
 getmime: getmime.c helper.c
-server: server.c
+server: server.c httpparser.c
 client: client.c
 
 debug: CFLAGS = -g -Wall -Werror -DDEBUG -DLOG_LEVEL=2 -I ./inc

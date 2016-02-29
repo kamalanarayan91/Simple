@@ -27,6 +27,7 @@
 #include <log.h>
 #include <helper.h>
 #include <config.h>
+#include <httpparser.h>
 
 #define ARGS_NUM 1
 #define MAX_LINE 128
@@ -43,7 +44,10 @@ int main(int argc, char **argv)
 
     char *client_addr_string;
     char buffer[MAX_LINE];
-
+    /*to be malloced by parser*/
+     bufStruct response;
+     response.buffer = (char *) malloc(sizeof(char)*(MAX_BUF_SIZE + 1));
+     response.bufSize = 0;
     /*
      * ignore SIGPIPE, will be handled
      * by return value
@@ -144,11 +148,21 @@ int main(int argc, char **argv)
          */
         if (bytes_received > 0) {
             buffer[bytes_received] = '\0';
+	    parseRequest(buffer,&response);
             printf("Read from client %s:%d -- %s\n",
                    client_addr_string, ntohs(client_addr.sin_port), buffer);
-            while (total_sent != bytes_received) {
+           /* while (total_sent != bytes_received) {
                 bytes_sent = send(client_sock, buffer + total_sent,
                                   bytes_received - total_sent, 0);
+                if (bytes_sent <= 0) {
+                    break;
+                } else {
+                    total_sent += bytes_sent;
+                }
+            } */
+            while (total_sent != response.bufSize) {
+                bytes_sent = send(client_sock, response.buffer + total_sent,
+                                  response.bufSize - total_sent, 0);
                 if (bytes_sent <= 0) {
                     break;
                 } else {
