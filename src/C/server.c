@@ -31,7 +31,7 @@
 #include <httpparser.h>
 
 #define ARGS_NUM 2
-#define MAX_LINE 128
+#define MAX_LINE 4096
 
 int main(int argc, char **argv)
 {
@@ -46,12 +46,11 @@ int main(int argc, char **argv)
     char *client_addr_string;
     char buffer[MAX_LINE];
     char path[MAX_PATH];
+    
     DIR *rootDir;
 
     /*to be malloced by parser*/
-     bufStruct response;
-     response.buffer = (char *) malloc(sizeof(char)*(MAX_BUF_SIZE + 1));
-     response.bufSize = 0;
+     
     /*
      * ignore SIGPIPE, will be handled
      * by return value
@@ -81,7 +80,9 @@ int main(int argc, char **argv)
 
 
     /*Validate path*/
+
     strcpy(path,argv[2]);
+    path[strlen(argv[2])+1]='\0';
     rootDir = opendir(path);
     if(rootDir==NULL)
     {
@@ -90,6 +91,7 @@ int main(int argc, char **argv)
     }
     else
     {
+        printf("path:::::::::%s\n",path);
         printf("Directory Valid!\n");
         closedir(rootDir);
     }
@@ -161,7 +163,21 @@ int main(int argc, char **argv)
                   client_addr_string, ntohs(client_addr.sin_port));
 
         /* Read the date sent from the client */
-        bytes_received = recv(client_sock, buffer, MAX_LINE - 1, 0);
+        //bytes_received = recv(client_sock, buffer, MAX_LINE - 1, 0);
+
+
+
+        int ret = 0;
+        while((( ret= recv(client_sock,(buffer + bytes_received), MAX_LINE - 1, 0)) > 0) && 
+            (bytes_received < MAX_BUF_SIZE)) 
+        {
+              bytes_received += ret;
+              printf("Received %d \n",ret);
+              if(strncmp((buffer+ (bytes_received -4)),"\r\n\r\n",4) == 0) {
+                   printf("break found\n");
+                   break;
+              }
+        }
 
         /*
          * Echo - Write (send) the data back to the client taking care of short
@@ -169,6 +185,12 @@ int main(int argc, char **argv)
          */
         if (bytes_received > 0) {
             buffer[bytes_received] = '\0';
+        
+        bufStruct response;
+        response.buffer = (char *) malloc(sizeof(char)*(MAX_BUF_SIZE + 1));
+        response.bufSize = 0;
+        response.entitySize=0;
+        printf("path::::%s",path);
 	    parseRequest(buffer,&response,path);
             printf("Read from client %s:%d -- %s\n",
                    client_addr_string, ntohs(client_addr.sin_port), buffer);
@@ -194,26 +216,34 @@ int main(int argc, char **argv)
             //reset for file transfer
             total_sent = 0;
             //Send file if applicable
-            while (total_sent != response.fileSize) {
+            while (total_sent != response.entitySize) {
                 printf("sendfile:\n");
-                bytes_sent = send(client_sock, response.fileBuffer + total_sent,
-                                  response.fileSize - total_sent, 0);
+                bytes_sent = send(client_sock, response.entityBuffer + total_sent,
+                                  response.entitySize - total_sent, 0);
                 printf("bytesSend:%d\n",bytes_sent);
                 if (bytes_sent <= 0) {
                     break;
                 } else {
                     total_sent += bytes_sent;
                 }
+
             }
 
+
+
+            if(response.entitySize !=0)
+                free(response.entityBuffer);
+
+            free(response.buffer);
+            printf("response freed\n");
+        
 
         }
         debug_log("Closing connection %s:%d",
                   client_addr_string, ntohs(client_addr.sin_port));
         /* Our work here is done. Close the connection to the client */
         //free all mallocs
-        //
-        close(client_sock);
+                close(client_sock);
     }
 
     return 0;
