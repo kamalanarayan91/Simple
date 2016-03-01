@@ -1,3 +1,14 @@
+/**
+ * @file    httpparser.c
+ * @authors Kamala Narayan B.S. (kamalanb)
+ *          Srikanth Sedimbi (ssedimbi)
+ * @date   Fri, 29 February 2015 
+ *
+ * @brief Routines that parse HTTP requests from the client and
+ * frame the response for sending back to the client.
+ *
+ */
+
 #include <httpparser.h>
 
 /**
@@ -20,32 +31,24 @@ void parseRequest(char *buffer, bufStruct *response,char *rootDirPath) {
 	char ch;
 	FILE *fp = NULL;
 	int method = -1;
-
-	//uri related -kamalanb
 	char resourcePath[MAX_PATH] = "";
 	char finalURI[MAX_PATH]="";
 
-	while((size < MAX_BUF_SIZE ) && ( (ch = buffer[size]) != ' ')) {
+	while((size < MAX_BUF_SIZE ) && ( (ch = buffer[size]) != ' ')) 
+	{
 		methodName[size] = ch;
 		size++;
 	}
 	
 	
 	methodName[size] = '\0';
-	printf("Method = %s\n",methodName);
-
-	printf("rootdirPath:%s",rootDirPath);
-
-
+	
 	//check Get method 
-	response->entitySize = 0; // initialize
-	printf("Return value =  %d \n",checkMethod(methodName));
+	response->entitySize = 0;
 	
 	if((method = checkMethod(methodName)) == FAILURE) 
 	{
-
 		serveError(501,response,FAILURE);
-	
 		return;
 	}	
 
@@ -61,24 +64,13 @@ void parseRequest(char *buffer, bufStruct *response,char *rootDirPath) {
 		size++;
 
 	}
+	
 	uri[uriLength] = '\0';
-	printf("Uri received = %s \n",uri);
+	
 
 	getFinalURI(uri,finalURI);
-	printf("finalURI:%s\n",finalURI);
-
-	// path
-	// argv[2] + uri.
-	// if uri == '/' , add index.html
-	// else
-	//all under the assumption that the rootDir doesn't have a /in the
-	//end
-	printf("\n\n\n");
 	strcpy(resourcePath,rootDirPath);
-	printf("resourcePath:%s\n",resourcePath);
 	strcat(resourcePath,finalURI);
-	printf("resourcePath:%s\n",resourcePath);
-	printf("\n\n\n");
 
 	//Check resource path:
 	int fileError = checkFile(resourcePath);
@@ -96,26 +88,22 @@ void parseRequest(char *buffer, bufStruct *response,char *rootDirPath) {
 	}
 
 
-
-
-
 	/*increment size to skip space delimiter*/
-        size++;
+    size++;
 
-	while((size < MAX_BUF_SIZE ) && ( (ch = buffer[size]) != '\r')) {
-                httpVersion[httpLength] = ch;
-				httpLength++;
-                size++;
-        }
+	while((size < MAX_BUF_SIZE ) && ( (ch = buffer[size]) != '\r')) 
+	{
+        httpVersion[httpLength] = ch;
+		httpLength++;
+        size++;
+	}
 
 	httpVersion[httpLength] = '\0';
 
-	if(checkHttpVersion(httpVersion) == -1) {
-		
+	if(checkHttpVersion(httpVersion) == -1)
+	{		
 		serveError(505,response,method);
-		printf("Response buf = %s\n",response->buffer);
 		return;
-
 	}
 
 	/*increment the size and check for '\n' */
@@ -130,17 +118,21 @@ void parseRequest(char *buffer, bufStruct *response,char *rootDirPath) {
 	/*Parse header if needed*/
 	/*file return*/
 
-	if(method == GET) {
+	if(method == GET) 
+	{
 		serveGet(response,fp,resourcePath);
 		return;
 	}
-	else if( method == HEAD) {
+	else if( method == HEAD) 
+	{
 		serveHead(response,fp,resourcePath);
-
 		return;
-	 } 
-	 else {
-		printf("Why am I here?\n");
+	} 
+
+	else 
+	{
+		/*Control  never reaches here*/
+		exit(FAILURE);
 	}
 
 }
@@ -155,27 +147,31 @@ void parseRequest(char *buffer, bufStruct *response,char *rootDirPath) {
 *	 1 : Get Method
 *	 2 : Head Method
 */
-int checkMethod(char *methodName) {
+int checkMethod(char *methodName) 
+{
 
-	if(strcmp(methodName,"GET") == 0) {
-		printf("GET Method found \n");
+	if(strcmp(methodName,"GET") == 0) 
+	{
+		
 		return GET;
 	}
-	else if( strcmp(methodName,"HEAD") == 0) {
-		printf("HEAD method found \n");
+	else if( strcmp(methodName,"HEAD") == 0) 
+	{
+		
 		return HEAD;
 	} 
-	else {
-		printf("Method not found \n");
+	else 
+	{
+		
 		return FAILURE;
 	}
 }
 
 
 /**
-*checkUri: Checks if the given uri can be  served by Server.
+*openFile: Checks if the given uri can be  served by Server.
 *args : 
-*       uri: string with uri path.
+*       filePath: string with uri path.
 *return: 
 *       null : uri not found
 *        fp : file pointer of the corresponding uri
@@ -198,10 +194,8 @@ FILE *openFile(char *filePath) {
 */
 int checkFile(char *filePath) {
 	
-
 	//directory check
 	struct stat buf;
-
 	int status = stat(filePath,&buf);
 	if(status == 0)
 	{
@@ -246,13 +240,15 @@ int checkFile(char *filePath) {
 */
 int checkHttpVersion(char *httpVersion) {
 
-	if(strcmp(httpVersion,"HTTP/1.1") != 0) {
-		printf("Version not supported \n");
-		return -1;
-	} else {
-		printf("Supports HTTP %s\n", httpVersion);
-	        return 0;
-
+	if(strcmp(httpVersion,"HTTP/1.1") != 0) 
+	{
+		
+		return FAILURE;
+	} 
+	else 
+	{
+		
+	    return SUCCESS;
 	}
 }
 
@@ -295,7 +291,7 @@ void serveGet(bufStruct *response,FILE *fp,char *uri) {
 	char *mimeBuf;
 	char mimeHeader[MAX_PATH] ="Content-Type: ";
 
-	printf("uri to read from:%s\n",uri);
+	
 
 	//currently sending 200 OK
 	// fill the file transfer
@@ -328,7 +324,6 @@ void serveGet(bufStruct *response,FILE *fp,char *uri) {
 	response->entitySize = ftell(fp);
 	rewind(fp);
 
-	printf("File Size==%zu\n",response->entitySize);
 
 	response->entityBuffer = malloc(response->entitySize);
 	fread(response->entityBuffer,sizeof(char),response->entitySize,fp);
@@ -353,7 +348,6 @@ void serveHead(bufStruct *response, FILE *fp,char *uri) {
 	char *mimeBuf;
 	char mimeHeader[MAX_PATH] ="Content-Type: ";
 
-	printf("uri to read from:%s\n",uri);
 
 	//currently sending 200 OK
 	// fill the file transfer
@@ -387,14 +381,25 @@ void serveHead(bufStruct *response, FILE *fp,char *uri) {
 }
 
 
+
+/**
+*serveError : Formulates the error response to be sent to the
+*client.
+*args:
+*       errorCode: HTTP error Code
+*       response: to be sent to the client
+*       requestType: GET/HEAD/ OTHER
+*return:
+*       none
+*/
 void serveError(int errorCode, bufStruct *response,int requestType )
 {
-	char errorBody[MAX_PATH];// More than enough
+	char errorBody[MAX_PATH];
 
 	switch(errorCode)
 	{
 		//Client Errors
-		case 400:	strcpy(((response->buffer)+(response->bufSize)),response400);
+		case 400: 	strcpy(((response->buffer)+(response->bufSize)),response400);
 					response->bufSize += strlen(response404);
 					strcpy(errorBody,"400: Bad Request\n");
 					break;
@@ -433,8 +438,6 @@ void serveError(int errorCode, bufStruct *response,int requestType )
 
 	};
 
-
-
 	//Server
 	strcpy(((response->buffer)+(response->bufSize)),server);
 	response->bufSize += strlen(server);
@@ -449,7 +452,7 @@ void serveError(int errorCode, bufStruct *response,int requestType )
  
 
 	//Entity Body
-	if(requestType ==GET)
+	if(requestType == GET)
 	{
 		//Not supposed to send if the request is HEAD
 		response->entityBuffer = malloc(strlen(errorBody)+1);
@@ -460,7 +463,6 @@ void serveError(int errorCode, bufStruct *response,int requestType )
  	{
  		response->entitySize = 0;
  	}
-
 
     return;
 
@@ -487,7 +489,6 @@ int checkHeader(char *buffer,int size) {
 		if(buffer[size] == '\r') {
 			if((strncmp((buffer + size),"\r\n\r\n",4)) == 0) {
 				ret = 0;
-				printf("Found Termination\n");
 				break;
 			}
 		}

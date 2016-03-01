@@ -1,11 +1,21 @@
+/**
+ * @file    httpparser.h
+ * @authors Kamala Narayan B.S. (kamalanb)
+ *          Srikanth Sedimbi (ssedimbi)
+ * @date   Fri, 29 February 2015 
+ *
+ * @brief header file for httpparser.c
+ *
+ */
+
 #ifndef _HTTP_PARSER_
 #define _HTTP_PARSER_
 
-#include<string.h>
-#include<stdlib.h>
-#include<stdio.h>
-#include<helper.h>
-#include<sys/stat.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <helper.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -15,7 +25,7 @@
 #define NOT_FOUND 404
 #define NOT_PERMITTED 403
 
-#define MAX_BUF_SIZE 1024
+#define MAX_BUF_SIZE 4096
 #define MAX_PATH 1024
 #define SUCCESS 1
 #define FAILURE -1
@@ -32,7 +42,7 @@ static const char response404[] = "HTTP/1.0 404 Not Found\r\n";
 static const char response500[] = "HTTP/1.0 500 Internal Server Error\r\n";
 static const char response501[] = "HTTP/1.0 501 Not Implemented\r\n";
 static const char response503[] = "HTTP/1.0 503 Service Unavailable\r\n";
-static const char response505[] = "HTTP/1.0 505 HTTP Version not Supported\r\n";
+static const char response505[] = "HTTP/1.0 505 HTTP Version Not Supported\r\n";
 
 static const char server[] = "Server: Simple/1.0\r\n";
 static const char boilerPlatePage[] = "index.html";
